@@ -6,5 +6,5 @@
 class SmokeSolver
 {
 public:
-	static void Run(float* outDensity, std::mutex& mutex, int& bExit);
+	static void Run(float*& outDensity, std::mutex& mutex, int& bExit);
 };

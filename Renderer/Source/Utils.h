@@ -13,9 +13,11 @@ struct Vertex
 	glm::vec2 texC;
 };
 
+// AABB
 struct BoundingBox
 {
-
+	glm::vec3 bbMin = std::numeric_limits<glm::vec3>::max();
+	glm::vec3 bbMax = std::numeric_limits<glm::vec3>::min();
 };
 
 struct MeshGeometry
@@ -29,11 +31,10 @@ struct MeshGeometry
 	std::vector<Vertex> mVertices;
 	std::vector<unsigned int> mIndices;
 
-	// Bounding box of the geometry defined by this submesh. 
-	// This is used in later chapters of the book.
 	BoundingBox bounds;
 
 	void BuildResources(std::vector<Vertex>& vertices, std::vector<unsigned int>& indices);
+	void BuildBoundingBox();
 	void Draw(Shader* shader);
 };
 
@@ -64,6 +65,7 @@ struct Material
 
 	unsigned int diffuseID = -1;
 	unsigned int normalID = -1;
+	unsigned int densityID = -1;
 };
 
 struct Texture
@@ -102,10 +104,12 @@ struct RenderItem
 	}
 };
 
-struct SmokeItem : RenderItem
+struct Smoke
 {
-	SmokeItem() = default;
-	SmokeItem(const SmokeItem& rhs) = delete;
-
+	std::string name;
+	unsigned int densityFieldID = -1;
 	float* density;
+
+	void BuildResource();
+	~Smoke();
 };

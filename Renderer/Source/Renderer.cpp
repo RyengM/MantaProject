@@ -16,6 +16,7 @@ void Renderer::Init()
 	mShadowMap->BuildFrameBuffer();
 
 	BuildTextures();
+	BuildSmokes();
 	BuildLights();
 	BuildGeometries();
 	BuildMaterials();
@@ -30,7 +31,7 @@ void Renderer::BuildLights()
 	dirLight->strength = glm::vec3(1.0f, 1.0f, 1.0f);
 	dirLight->position = glm::vec3(0.f, 15.f, 10.f);
 	dirLight->focalPoint = glm::vec3(0.0f, 0.0f, 0.0f);
-	mLight.push_back(std::move(dirLight));
+	mLights.push_back(std::move(dirLight));
 	//auto pointLight = std::make_unique<Light>();
 	//pointLight->type = 1;
 	//pointLight->strength = glm::vec3(0.8f, 0.4f, 0.5f);
@@ -38,6 +39,14 @@ void Renderer::BuildLights()
 	//pointLight->falloffStart = 1.f;
 	//pointLight->falloffEnd = 4.f;
 	//mLight.push_back(std::move(pointLight));
+}
+
+void Renderer::BuildSmokes()
+{
+	auto smoke = std::make_unique<Smoke>();
+	smoke->name = "smoke";
+	smoke->BuildResource();
+	smokes[smoke->name] = std::move(smoke);
 }
 
 void Renderer::BuildTextures()
@@ -138,7 +147,7 @@ void Renderer::BuildShaders()
 	shadowShader->Link();
 	shadowShader->Use();
 	// Main light: directional
-	glm::mat4 lightView = glm::lookAt(mLight[0]->position, mLight[0]->focalPoint, glm::vec3(0.f, 1.f, 0.f));
+	glm::mat4 lightView = glm::lookAt(mLights[0]->position, mLights[0]->focalPoint, glm::vec3(0.f, 1.f, 0.f));
 	glm::mat4 lightProj = glm::ortho(-20.0f, 20.0f, -20.0f, 20.0f, 0.1f, 100.f);
 	shadowShader->SetMat4("lightProjView", lightProj * lightView);
 	mShaders["Shadow"] = std::move(shadowShader);
@@ -150,15 +159,15 @@ void Renderer::BuildShaders()
 	shapeShader->Attach();
 	shapeShader->Link();
 	shapeShader->Use();
-	for (int i = 0; i < mLight.size(); ++i)
+	for (int i = 0; i < mLights.size(); ++i)
 	{
-		shapeShader->SetInt("light[" + std::to_string(i) + "].type", mLight[i]->type);
-		shapeShader->SetVec3("light[" + std::to_string(i) + "].pos", mLight[i]->position);
-		shapeShader->SetVec3("light[" + std::to_string(i) + "].strength", mLight[i]->strength);
-		shapeShader->SetVec3("light[" + std::to_string(i) + "].dir", mLight[i]->focalPoint - mLight[i]->position);
-		shapeShader->SetFloat("light[" + std::to_string(i) + "].fallStart", mLight[i]->falloffStart);
-		shapeShader->SetFloat("light[" + std::to_string(i) + "].fallEnd", mLight[i]->falloffEnd);
-		shapeShader->SetFloat("light[" + std::to_string(i) + "].spotPower", mLight[i]->spotPower);
+		shapeShader->SetInt("light[" + std::to_string(i) + "].type", mLights[i]->type);
+		shapeShader->SetVec3("light[" + std::to_string(i) + "].pos", mLights[i]->position);
+		shapeShader->SetVec3("light[" + std::to_string(i) + "].strength", mLights[i]->strength);
+		shapeShader->SetVec3("light[" + std::to_string(i) + "].dir", mLights[i]->focalPoint - mLights[i]->position);
+		shapeShader->SetFloat("light[" + std::to_string(i) + "].fallStart", mLights[i]->falloffStart);
+		shapeShader->SetFloat("light[" + std::to_string(i) + "].fallEnd", mLights[i]->falloffEnd);
+		shapeShader->SetFloat("light[" + std::to_string(i) + "].spotPower", mLights[i]->spotPower);
 	}
 	shapeShader->SetInt("diffuseMap", 0);
 	shapeShader->SetInt("normalMap", 1);
@@ -176,6 +185,18 @@ void Renderer::BuildShaders()
 
 	// Smoke
 	auto smokeShader = std::make_unique<Shader>();
+	smokeShader->CreateVS("Shader/Smoke.vert");
+	smokeShader->CreatePS("Shader/Smoke.frag");
+	smokeShader->Attach();
+	smokeShader->Link();
+	smokeShader->Use();
+	for (int i = 0; i < mLights.size(); ++i)
+	{
+		smokeShader->SetVec3("light.pos", mLights[i]->position);
+		smokeShader->SetVec3("light.strength", mLights[i]->strength);
+		smokeShader->SetVec3("light.dir", mLights[i]->focalPoint - mLights[i]->position);
+	}
+	mShaders["Smoke"] = std::move(smokeShader);
 }
 
 void Renderer::BuildMaterials()
@@ -198,7 +219,11 @@ void Renderer::BuildMaterials()
 
 	auto light0 = std::make_unique<Material>();
 	light0->name = "light0";
-	light0->emmisive = mLight[0]->strength;
+	light0->emmisive = mLights[0]->strength;
+
+	auto smoke = std::make_unique<Material>();
+	smoke->name = "smoke";
+	smoke->densityID = smokes["smoke"]->densityFieldID;
 
 	mMaterials["brick0"] = std::move(brick0);
 	mMaterials["tile"] = std::move(tile);
@@ -231,16 +256,17 @@ void Renderer::BuildRenderItems()
 	mOpaqueItems.push_back(gridItem.get());
 	mRenderItems.push_back(std::move(gridItem));
 
-	auto smokeItem = std::make_unique<SmokeItem>();
-	smokeItem->world = glm::translate(glm::mat4(1.f), glm::vec3(2.f, 0.f, 4.f));
+	auto smokeItem = std::make_unique<RenderItem>();
+	smokeItem->world = glm::translate(glm::mat4(1.f), glm::vec3(2.f, 5.f, 4.f));
+	smokeItem->world = glm::scale(smokeItem->world, glm::vec3(2.f, 8.f, 2.f));
 	smokeItem->mat = mMaterials["brick0"].get();
 	smokeItem->geo = mGeometries["box"].get();
 	smokeItem->textureScale = 1;
-	mSmokeItem = smokeItem.get();
+	mSmokeItems.push_back(smokeItem.get());
 	mRenderItems.push_back(std::move(smokeItem));
 
 	auto lightItem = std::make_unique<RenderItem>();
-	lightItem->world = glm::translate(glm::mat4(1.f), mLight[0]->position);
+	lightItem->world = glm::translate(glm::mat4(1.f), mLights[0]->position);
 	lightItem->world = glm::scale(lightItem->world, glm::vec3(0.3f));
 	lightItem->mat = mMaterials["light0"].get();
 	lightItem->geo = mGeometries["box"].get();
@@ -253,7 +279,15 @@ void Renderer::UpdatePassCb()
 	mPassCb.view = mCurrentCamera.GetViewMatrix();
 	mPassCb.proj = glm::perspective(glm::radians(mCurrentCamera.fov), (float)screenWidth / (float)screenHeight, mCurrentCamera.nearPlane, mCurrentCamera.farPlane);
 	mPassCb.eyePos = mCurrentCamera.position;
-	mPassCb.lightNum = mLight.size();
+	mPassCb.lightNum = mLights.size();
+}
+
+void Renderer::UpdateSmoke()
+{
+	phyxMutex.lock();
+	glBindTexture(GL_TEXTURE_3D, smokes["smoke"]->densityFieldID);
+	glTexImage3D(GL_TEXTURE_3D, 0, GL_R8, 32, 128, 32, 0, GL_RED, GL_FLOAT, &smokes["smoke"]->density[0]);
+	phyxMutex.unlock();
 }
 
 void Renderer::Draw()
@@ -268,6 +302,7 @@ void Renderer::Draw()
 
 		// Update info
 		UpdatePassCb();
+		UpdateSmoke();
 
 		// Clear screen
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
@@ -280,6 +315,7 @@ void Renderer::Draw()
 		DrawLight();
 		DrawShadow();
 		DrawOpaque();
+		DrawSmoke();
 
 		// glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
 		glfwSwapBuffers(window);
@@ -343,6 +379,29 @@ void Renderer::DrawOpaque()
 		shape->SetFloat("material.roughness", item->mat->roughness);
 		item->Draw(shape);
 	}
+}
+
+void Renderer::DrawSmoke()
+{
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	auto smoke = mShaders["Smoke"].get();
+	smoke->Use();
+	smoke->SetMat4("passCb.view", mPassCb.view);
+	smoke->SetMat4("passCb.proj", mPassCb.proj);
+	smoke->SetVec3("passCb.eyePos", mPassCb.eyePos);
+	smoke->SetVec4("passCb.ambientLight", mPassCb.ambientLight);
+	smoke->SetInt("passCb.lightNum", mPassCb.lightNum);
+	glEnable(GL_TEXTURE_3D);
+	for (auto item : mSmokeItems)
+	{
+		glBindTexture(GL_TEXTURE_3D, item->mat->densityID);
+		smoke->SetMat4("model", item->world);
+		smoke->SetVec3("bbMin", item->geo->bounds.bbMin);
+		smoke->SetVec3("bbMax", item->geo->bounds.bbMax);
+		item->Draw(smoke);
+	}
+	glDisable(GL_BLEND);
 }
 
 void Renderer::GLPrepare()

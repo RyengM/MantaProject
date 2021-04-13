@@ -29,11 +29,11 @@ public:
 	void GLFinish();
 
 	void BuildLights();
+	void BuildSmokes();
 	void BuildGeometries();
 	void BuildShaders();
 	void BuildMaterials();
 	void BuildTextures();
-	void BuildSmoke();
 	void BuildRenderItems();
 
 	void UpdatePassCb();
@@ -44,11 +44,7 @@ public:
 	void DrawOpaque();
 	void DrawShadow();
 	void DrawLight();
-
-	inline float* GetSmokeDensityPointer()
-	{
-		return mSmokeItem->density;
-	}
+	void DrawSmoke();
 
 	// Callbacks
 	static void framebuffer_size_callback(GLFWwindow* window, int width, int height);
@@ -58,6 +54,8 @@ public:
 public:
 	std::mutex phyxMutex;
 	int exit = 0;
+
+	std::unordered_map<std::string, std::unique_ptr<Smoke>> smokes;
 
 private:
 	TinyddsLoader::DDSFile DDSLoader;
@@ -70,9 +68,9 @@ private:
 
 	std::vector<RenderItem*> mOpaqueItems;
 	std::vector<RenderItem*> mLightItems;
-	SmokeItem* mSmokeItem;
+	std::vector<RenderItem*> mSmokeItems;
 
-	std::vector<std::unique_ptr<Light>> mLight;
+	std::vector<std::unique_ptr<Light>> mLights;
 
 	PassCb mPassCb;
 

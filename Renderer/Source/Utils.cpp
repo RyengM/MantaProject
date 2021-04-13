@@ -31,6 +31,22 @@ void MeshGeometry::BuildResources(std::vector<Vertex>& vertices, std::vector<uns
 	// Build CPU resource
 	mVertices = std::move(vertices);
 	mIndices = std::move(indices);
+
+	BuildBoundingBox();
+}
+
+void MeshGeometry::BuildBoundingBox()
+{
+	for (int i = 0; i < mVertices.size(); ++i)
+	{
+		glm::vec3 v = mVertices[i].pos;
+		bounds.bbMin.x = bounds.bbMin.x < v.x ? bounds.bbMin.x : v.x;
+		bounds.bbMin.y = bounds.bbMin.y < v.y ? bounds.bbMin.y : v.y;
+		bounds.bbMin.z = bounds.bbMin.z < v.z ? bounds.bbMin.z : v.z;
+		bounds.bbMax.x = bounds.bbMax.x > v.x ? bounds.bbMax.x : v.x;
+		bounds.bbMax.y = bounds.bbMax.y > v.y ? bounds.bbMax.y : v.y;
+		bounds.bbMax.z = bounds.bbMax.z > v.z ? bounds.bbMax.z : v.z;
+	}
 }
 
 void MeshGeometry::Draw(Shader* shader)
@@ -47,4 +63,25 @@ void Texture::BuildResource(TinyddsLoader::DDSFile& ddsFile)
 
 	if (!TinyddsLoader::OpenGLDSS::LoadGLTexture(textureID, ddsFile))
 		std::cout << "Texture failed to load at path: " << path << std::endl;
+}
+
+void Smoke::BuildResource()
+{
+	glEnable(GL_TEXTURE_3D);
+	glGenTextures(1, &densityFieldID);
+	glBindTexture(GL_TEXTURE_3D, densityFieldID);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_BORDER);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glBindTexture(GL_TEXTURE_3D, 0);
+
+	density = (float*)malloc(32 * 128 * 32 * sizeof(float));
+	memset(density, 0, 32 * 128 * 32 * sizeof(float));
+}
+
+Smoke::~Smoke()
+{
+	free(density);
 }

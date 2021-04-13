@@ -10,8 +10,8 @@ int main()
 
 	renderer.Init();
 	
-	//ThreadGuard phyx(std::thread(SmokeSolver::Run, renderer.GetSmokeDensityPointer(), std::ref(renderer.phyxMutex), std::ref(renderer.exit)), ThreadGuard::DesAction::JOIN);
-	
+	ThreadGuard phyx(std::thread(SmokeSolver::Run, std::ref(renderer.smokes["smoke"]->density), std::ref(renderer.phyxMutex), std::ref(renderer.exit)), ThreadGuard::DesAction::JOIN);
+
 	renderer.Draw();
 
 	return 0;

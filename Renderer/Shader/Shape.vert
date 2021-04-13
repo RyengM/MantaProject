@@ -15,8 +15,6 @@ out VS_OUT
     vec4 shadowCoord;
 } vs_out;
 
-uniform mat4 model;
-
 struct PassCb
 {
     mat4 view;
@@ -28,6 +26,7 @@ struct PassCb
 uniform PassCb passCb;
 
 uniform mat4 lightProjView;
+uniform mat4 model;
 
 void main()
 {
