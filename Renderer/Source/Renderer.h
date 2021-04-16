@@ -3,7 +3,10 @@
 #include "Shader.h"
 #include "Utils.h"
 #include "Camera.h"
-#include "ShadowMap.h"
+#include "FrameBufferObject.h"
+#include "Imgui/imgui.h"
+#include "Imgui/imgui_impl_glfw.h"
+#include "Imgui/imgui_impl_opengl3.h"
 #include <GLFW/glfw3.h>
 #include <unordered_map>
 #include <mutex>
@@ -28,6 +31,8 @@ public:
 	// Finish GLFW
 	void GLFinish();
 
+	// Render config
+	void BuildFrameBuffers();
 	void BuildLights();
 	void BuildSmokes();
 	void BuildGeometries();
@@ -37,7 +42,6 @@ public:
 	void BuildRenderItems();
 
 	void UpdatePassCb();
-	// There is no need to update static objects
 	void UpdateObjectCb();
 	void UpdateSmoke();
 
@@ -45,11 +49,13 @@ public:
 	void DrawShadow();
 	void DrawLight();
 	void DrawSmoke();
+	void DrawSkyBox();
 
-	// Callbacks
-	static void framebuffer_size_callback(GLFWwindow* window, int width, int height);
-	static void mouse_callback(GLFWwindow* window, double xpos, double ypos);
-	static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
+	// Imgui configs
+	void SetupImgui();
+	void DrawImgui();
+
+	static EInputButton GetPressedButton(GLFWwindow* window);
 
 public:
 	std::mutex phyxMutex;
@@ -58,6 +64,8 @@ public:
 	std::unordered_map<std::string, std::unique_ptr<Smoke>> smokes;
 
 private:
+	std::unique_ptr<Camera> mCamera;
+
 	TinyddsLoader::DDSFile DDSLoader;
 
 	std::unordered_map<std::string, std::unique_ptr<Shader>> mShaders;
@@ -70,26 +78,36 @@ private:
 	std::vector<RenderItem*> mLightItems;
 	std::vector<RenderItem*> mSmokeItems;
 
+	std::unique_ptr<RenderItem> mSkyItem;
+
 	std::vector<std::unique_ptr<Light>> mLights;
 
 	PassCb mPassCb;
 
 	std::unique_ptr<ShadowMap> mShadowMap;
+	std::unique_ptr<GameFrameBufferObject> mSceneFB;
 
-	//std::unordered_map<std::string, std::unique_ptr<Camera>> mCameras;
+	ImGuiContext* mSceneImGuiCtx = nullptr;
+	ImGuiContext* mUICtx = nullptr;
 
-	GLFWwindow* window = nullptr;
-	const unsigned int screenWidth = 1900;
+	//std::unique_ptr<ImGuiContext> mGameContext;
+
+	GLFWwindow* mWindow = nullptr;
+	const unsigned int screenWidth = 1920;
 	const unsigned int screenHeight = 1080;
+
+	// Time
+	float lastFrame = 0.f;
+	float deltaTime = 0.f;
 };
 
 // =========================================================================
 // Static camera and related parameters for callback 
-static Camera mCurrentCamera;
-// Mouse position at last frame
-static float lastX;
-static float lastY;
-static bool firstMouse = true;
-// Timing
-static float deltaTime = 0.f;	// time between current frame and last frame
-static float lastFrame = 0.f;
+//static Camera mCurrentCamera;
+//// Mouse position at last frame
+//static float lastX;
+//static float lastY;
+//static bool firstMouse = true;
+//// Timing
+//static float deltaTime = 0.f;	// time between current frame and last frame
+//static float lastFrame = 0.f;

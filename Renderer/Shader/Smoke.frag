@@ -1,5 +1,7 @@
 #version 430 core
 
+out vec4 FragColor;
+
 in VS_OUT
 {
     vec3 fragWorldPos;
@@ -80,7 +82,6 @@ void main()
 	vec3 lightE = vec3(0.584f, 0.514f, 0.451f);
 	float lightEnergy = 0.f;
 	float transmittance = 1.f;
-	float alpha = 0.f;
 
 	for (int i = 0; i < maxSteps; ++i)
 	{	
@@ -91,19 +92,19 @@ void main()
 			vec3 lightPos = curPos;
 			float shadow = 0.f;
 
-			for (int s = 0; s < shadowSteps; ++s)
-			{
-				lightPos += lightVec;
-				float lightSample = texture(densityTexture, lightPos).x;
+			// for (int s = 0; s < shadowSteps; ++s)
+			// {
+			// 	lightPos += lightVec;
+			// 	float lightSample = texture(densityTexture, lightPos).x;
 
-				if (lightSample < 0.005f)
-					continue;
+			// 	if (lightSample < 0.005f)
+			// 		continue;
 
-				shadow += lightSample;
-			}
+			// 	shadow += lightSample;
+			// }
 
 			float curdensity = clamp(cursample / 64.f, 0, 1);
-			float shadowterm = exp(-shadow * 0.01f);
+			float shadowterm = exp(-shadow * 0.001f);
 			float absorbedlight = shadowterm * curdensity;
 			lightEnergy += absorbedlight * transmittance;
 			transmittance *= 1.f - curdensity;
@@ -112,5 +113,9 @@ void main()
 		curPos += localCamVec;
 	}
 
-    gl_FragColor = vec4((lightEnergy + 0.8f) * 0.5f * lightE, lightEnergy * 1.5f);
+	vec3 color = (lightEnergy + 0.8f) * 0.5f * lightE;
+	float alpha = lightEnergy * 2.0f;
+	if (alpha < 0.1f) alpha = 0.f;
+
+    FragColor = vec4(color, alpha);
 }

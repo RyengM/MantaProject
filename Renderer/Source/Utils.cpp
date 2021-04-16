@@ -1,8 +1,10 @@
 #include "Utils.h"
+#include "TextureLoader.h"
 
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+
 
 void MeshGeometry::BuildResources(std::vector<Vertex>& vertices, std::vector<unsigned int>& indices)
 {
@@ -63,6 +65,30 @@ void Texture::BuildResource(TinyddsLoader::DDSFile& ddsFile)
 
 	if (!TinyddsLoader::OpenGLDSS::LoadGLTexture(textureID, ddsFile))
 		std::cout << "Texture failed to load at path: " << path << std::endl;
+}
+
+void Texture::BuildResource(std::string fileName)
+{
+	glGenTextures(1, &textureID);
+
+	TextureLoader::LoadTexture(textureID, fileName);
+}
+
+void Texture::BuildResource(std::vector<std::string> cubeFilenames)
+{
+	glGenTextures(1, &textureID);
+
+	TextureLoader::LoadCubemap(textureID, cubeFilenames);
+}
+
+void RenderItem::UpdateWorld()
+{
+	world = glm::scale(glm::translate(glm::mat4(1.f), position), scale);
+}
+
+void RenderItem::Draw(Shader* shader)
+{
+	geo->Draw(shader);
 }
 
 void Smoke::BuildResource()

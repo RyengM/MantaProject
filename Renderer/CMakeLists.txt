@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.15)
 set(PROJECT_NAME Renderer)
 project(${PROJECT_NAME} LANGUAGES CXX)
 
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+
 OPTION(TBB "Use multi-thread kernels using Intels TBB" OFF)
 
 include_directories("../ThirdParty/OpenGL/include")
@@ -21,10 +23,12 @@ if (TBB)
 	link_libraries("C:/Program Files/Intel/TBB/lib/intel64/vc14/tbb12.lib")
 endif()
 
-file(GLOB_RECURSE HEADER_FILES "Source/*.h")
-file(GLOB_RECURSE SOURCE_FILES "Source/*.cpp" "Source/*.c")
+file(GLOB HEADER_FILES "Source/*.h")
+file(GLOB SOURCE_FILES "Source/*.cpp" "Source/*.c")
+file(GLOB IMGUI_FILES "Source/Imgui/*.cpp", "Source/Imgui/*.h")
+source_group("Imgui" FILES ${IMGUI_FILES})
 
-add_executable(${PROJECT_NAME} ${HEADER_FILES} ${SOURCE_FILES})
+add_executable(${PROJECT_NAME} ${HEADER_FILES} ${SOURCE_FILES} ${IMGUI_FILES})
 
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/Bin)
 

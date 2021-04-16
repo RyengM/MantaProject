@@ -6,70 +6,83 @@
 #include <vector>
 
 // defines several possible options for camera movement. Used as abstraction to stay away from window-system specific input methods
-enum CameraMovement {
-	FORWARD,
-	BACKWARD,
-	LEFT,
-	RIGHT
+enum class ECameraMovement {
+	FORWARD = 0,
+	BACKWARD = 1,
+	LEFT = 2,
+	RIGHT = 3
 };
 
-// default camera values
-const float YAW = 0.0f;
-const float PITCH = 0.0f;
-const float SPEED = 2.5f;
-const float SENSITIVITY = 0.1f;
-const float FOV = 45.0f;
+enum class EInputButton
+{
+	LEFT = 0,
+	RIGHT = 1,
+	MIDDLE = 2,
+	NONE = 3
+};
 
 // an abstract camera class that processes input and calculates the corresponding Euler Angles, Vectors and Matrices for use in OpenGL
 class Camera
 {
 public:
-	// constructor with vectors
-	Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3 WorldUp = glm::vec3(0.0f, 1.0f, 0.0f), float yaw = YAW, float pitch = PITCH)
-		: position(position), worldUp(WorldUp), yaw(yaw), pitch(pitch), front(glm::vec3(1.0f, 0.0f, 0.0f)), movementSpeed(SPEED), mouseSensitivity(SENSITIVITY), fov(FOV)
+	Camera(glm::vec3 position, float fov, float aspect, float nearPlane, float farPlane) : position(position), fov(fov), aspect(aspect), nearPlane(nearPlane), farPlane(farPlane)
 	{
-		updateCameraVectors();
-	}
-	// constructor with scalar values
-	Camera(float posX, float posY, float posZ, float upX, float upY, float upZ, float yaw, float pitch) 
-		: position(glm::vec3(posX, posY, posZ)), worldUp(glm::vec3(upX, upY, upZ)), yaw(yaw), pitch(pitch), front(glm::vec3(0.0f, 0.0f, -1.0f)), movementSpeed(SPEED), mouseSensitivity(SENSITIVITY), fov(FOV)
-	{
-		updateCameraVectors();
+		SetAspect();
+		UpdateView();
+		UpdateCameraVectors();
 	}
 
-	// returns the view matrix calculated using Euler Angles and the LookAt Matrix
+	inline void SetAspect()
+	{
+		projMatrix = glm::perspective(fov, aspect, nearPlane, farPlane);
+	}
+
+	inline void UpdateView()
+	{
+		viewMatrix = glm::lookAt(position, position + front, up);
+	}
+
 	inline glm::mat4 GetViewMatrix()
 	{
-		return glm::lookAt(position, position + front, up);
+		return viewMatrix;
+	}
+
+	inline glm::mat4 GetProjMatrix()
+	{
+		return projMatrix;
 	}
 
 	// processes input received from any keyboard-like input system. Accepts input parameter in the form of camera defined ENUM (to abstract it from windowing systems)
-	void ProcessKeyboard(CameraMovement direction, float deltaTime);
+	void ProcessKeyboard(ECameraMovement direction, float deltaTime);
 
 	// processes input received from a mouse input system. Expects the offset value in both the x and y direction.
-	void ProcessMouseMovement(float xoffset, float yoffset, bool constrainPitch = true);
-
-	// processes input received from a mouse scroll-wheel event. Only requires input on the vertical wheel-axis
-	void ProcessMouseScroll(float yoffset);
+	void ProcessMouseMovement(float x, float y, EInputButton input);
 
 private:
 	// calculates the front vector from the Camera's (updated) Euler Angles
-	void updateCameraVectors();
+	void UpdateCameraVectors();
 
 public:
+	glm::mat4 viewMatrix = glm::mat4(1.f);
+	glm::mat4 projMatrix = glm::mat4(1.f);
 	// camera Attributes
-	glm::vec3 position;
-	glm::vec3 front;
-	glm::vec3 up;
-	glm::vec3 right;
-	glm::vec3 worldUp;
+	glm::vec3 position = glm::vec3(0.f, 0.f, 0.f);
+	glm::vec3 front = glm::vec3(1.f, 0.f, 0.f);
+	glm::vec3 up = glm::vec3(0.f, 1.f, 0.f);
+	glm::vec3 right = glm::vec3(0.f, 0.f, 1.f);
+	glm::vec3 worldUp = glm::vec3(0.f, 1.f, 0.f);
 	// euler Angles
-	float yaw;
-	float pitch;
+	float yaw = 0.f;
+	float pitch = 0.f;
 	// camera options
-	float movementSpeed;
-	float mouseSensitivity;
-	float fov;
+	float movementSpeed = 2.5f;
+	float mouseSensitivity = 0.2f;
+	float fov = 45.f;
+	float aspect = 16.f / 9.f;
 	float nearPlane = 0.1;
 	float farPlane = 1000.f;
+	// cursor
+	glm::vec2 cursorLastPos = glm::vec2(0.f, 0.f);
+	// right mouse is activated
+	bool active = false;
 };

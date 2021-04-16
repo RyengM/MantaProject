@@ -1,4 +1,5 @@
 #include "Renderer.h"
+#include <glad/glad.h>
 #include <iostream>
 
 Renderer::Renderer()
@@ -9,12 +10,11 @@ Renderer::Renderer()
 void Renderer::Init()
 {
 	GLPrepare();
-	mCurrentCamera = Camera(glm::vec3(-10.f, 5.f, 0.f), glm::vec3(0.0f, 1.0f, 0.0f));
+	SetupImgui();
 
-	//mShadowMap = std::make_unique<ShadowMap>(1024, 1024);
-	mShadowMap = std::make_unique<ShadowMap>(2048, 2048);
-	mShadowMap->BuildFrameBuffer();
+	mCamera = std::make_unique<Camera>(glm::vec3(-10.f, 5.f, 0.f), 45, 16.f / 9.f, 0.1f, 100.f);
 
+	BuildFrameBuffers();
 	BuildTextures();
 	BuildSmokes();
 	BuildLights();
@@ -24,11 +24,19 @@ void Renderer::Init()
 	BuildRenderItems();
 }
 
+void Renderer::BuildFrameBuffers()
+{
+	mShadowMap = std::make_unique<ShadowMap>(2048, 2048);
+	mShadowMap->BuildFrameBuffer();
+	mSceneFB = std::make_unique<GameFrameBufferObject>(1920, 1080);
+	mSceneFB->BuildFrameBuffer();
+}
+
 void Renderer::BuildLights()
 {
 	auto dirLight = std::make_unique<Light>();
 	dirLight->type = 0;
-	dirLight->strength = glm::vec3(1.0f, 1.0f, 1.0f);
+	dirLight->strength = glm::vec3(4.0f, 4.0f, 4.0f);
 	dirLight->position = glm::vec3(0.f, 15.f, 10.f);
 	dirLight->focalPoint = glm::vec3(0.0f, 0.0f, 0.0f);
 	mLights.push_back(std::move(dirLight));
@@ -51,34 +59,87 @@ void Renderer::BuildSmokes()
 
 void Renderer::BuildTextures()
 {
-	std::vector<std::string> texNames =
+	//std::vector<std::string> ddsTexNames =
+	//{
+	//	"bricksDiffuseMap",
+	//	"bricksNormalMap",
+	//	"tileDiffuseMap",
+	//	"tileNormalMap"
+	//};
+
+	//std::vector<std::string> ddsTexFilenames =
+	//{
+	//	"Texture/bricks2.dds",
+	//	"Texture/bricks2_nmap.dds",
+	//	"Texture/tile.dds",
+	//	"Texture/tile_nmap.dds"
+	//};
+
+	std::vector<std::string> stbTexNames =
 	{
-		"bricksDiffuseMap",
-		"bricksNormalMap",
-		"tileDiffuseMap",
-		"tileNormalMap"
+		"brickWallDiffuseMap",
+		"brickWallNormalMap"
 	};
 
-	std::vector<std::string> texFilenames =
+	std::vector<std::string> stbTexFilenames =
 	{
-		"Texture/bricks2.dds",
-		"Texture/bricks2_nmap.dds",
-		"Texture/tile.dds",
-		"Texture/tile_nmap.dds"
+		"Texture/brickwall.jpg",
+		"Texture/brickwall_normal.jpg"
 	};
 
-	for (int i = 0; i < (int)texNames.size(); ++i)
+	std::vector<std::string> stbCubeNames =
+	{
+		"skyBox"
+	};
+
+	std::vector<std::vector<std::string>> stbCubeFilenames =
+	{
+		{
+			"Texture/right.jpg",
+			"Texture/left.jpg",
+			"Texture/top.jpg",
+			"Texture/bottom.jpg",
+			"Texture/front.jpg",
+			"Texture/back.jpg"
+		}
+	};
+
+	// DDS
+	//for (int i = 0; i < ddsTexNames.size(); ++i)
+	//{
+	//	auto texMap = std::make_unique<Texture>();
+	//	texMap->name = ddsTexNames[i];
+	//	texMap->path = ddsTexFilenames[i];
+	//	auto ret = DDSLoader.Load(texMap->path.c_str());
+	//	if (ret != TinyddsLoader::Result::Success)
+	//	{
+	//		std::cout << "Failed to load.[" << texMap->path << "]\n";
+	//		std::cout << "Result : " << int(ret) << "\n";
+	//	}
+	//	texMap->BuildResource(DDSLoader);
+
+	//	mTextures[texMap->name] = std::move(texMap);
+	//}
+
+	// PNG, JPG, BMP
+	for (int i = 0; i < stbTexNames.size(); ++i)
 	{
 		auto texMap = std::make_unique<Texture>();
-		texMap->name = texNames[i];
-		texMap->path = texFilenames[i];
-		auto ret = DDSLoader.Load(texMap->path.c_str());
-		if (ret != TinyddsLoader::Result::Success)
-		{
-			std::cout << "Failed to load.[" << texMap->path << "]\n";
-			std::cout << "Result : " << int(ret) << "\n";
-		}
-		texMap->BuildResource(DDSLoader);
+		texMap->name = stbTexNames[i];
+		texMap->path = stbTexFilenames[i];
+
+		texMap->BuildResource(texMap->path.c_str());
+
+		mTextures[texMap->name] = std::move(texMap);
+	}
+	// Cubemap
+	for (int i = 0; i < stbCubeNames.size(); ++i)
+	{
+		auto texMap = std::make_unique<Texture>();
+		texMap->name = stbCubeNames[i];
+		texMap->cubePath = stbCubeFilenames[i];
+
+		texMap->BuildResource(texMap->cubePath);
 
 		mTextures[texMap->name] = std::move(texMap);
 	}
@@ -87,22 +148,39 @@ void Renderer::BuildTextures()
 void Renderer::BuildGeometries()
 {
 	GeometryGenerator geoGen;
+	GeometryGenerator::MeshData cube = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 0);
 	GeometryGenerator::MeshData box = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);
 	GeometryGenerator::MeshData grid = geoGen.CreateGrid(20.0f, 30.0f, 60, 40);
 	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
 
+	MeshGeometry cubeMesh;
+	cubeMesh.name = "cube";
+	cubeMesh.indexCount = (unsigned int)cube.Indices32.size();
+
 	MeshGeometry boxMesh;
+	boxMesh.name = "box";
 	boxMesh.indexCount = (unsigned int)box.Indices32.size();
 
 	MeshGeometry gridMesh;
+	gridMesh.name = "grid";
 	gridMesh.indexCount = (unsigned int)grid.Indices32.size();
 
 	MeshGeometry sphereMesh;
+	sphereMesh.name = "sphere";
 	sphereMesh.indexCount = (unsigned int)sphere.Indices32.size();
 	
+	std::vector<Vertex> cubeVertices(cube.Vertices.size());
 	std::vector<Vertex> boxVertices(box.Vertices.size());
 	std::vector<Vertex> gridVertices(grid.Vertices.size());
 	std::vector<Vertex> sphereVertices(sphere.Vertices.size());
+
+	for (size_t i = 0; i < cube.Vertices.size(); ++i)
+	{
+		cubeVertices[i].pos = cube.Vertices[i].Position;
+		cubeVertices[i].normal = cube.Vertices[i].Normal;
+		cubeVertices[i].tangentU = cube.Vertices[i].TangentU;
+		cubeVertices[i].texC = cube.Vertices[i].TexC;
+	}
 	
 	for (size_t i = 0; i < box.Vertices.size(); ++i)
 	{
@@ -128,10 +206,12 @@ void Renderer::BuildGeometries()
 		sphereVertices[i].texC = sphere.Vertices[i].TexC;
 	}
 
+	cubeMesh.BuildResources(cubeVertices, cube.Indices32);
 	boxMesh.BuildResources(boxVertices, box.Indices32);
 	gridMesh.BuildResources(gridVertices, grid.Indices32);
 	sphereMesh.BuildResources(sphereVertices, sphere.Indices32);
 
+	mGeometries["cube"] = std::move(std::make_unique<MeshGeometry>(cubeMesh));
 	mGeometries["box"] = std::move(std::make_unique<MeshGeometry>(boxMesh));
 	mGeometries["grid"] = std::move(std::make_unique<MeshGeometry>(gridMesh));
 	mGeometries["sphere"] = std::move(std::make_unique<MeshGeometry>(sphereMesh));
@@ -139,6 +219,16 @@ void Renderer::BuildGeometries()
 
 void Renderer::BuildShaders()
 {
+	// Skybox
+	auto skyShader = std::make_unique<Shader>();
+	skyShader->CreateVS("Shader/SkyBox.vert");
+	skyShader->CreatePS("Shader/SkyBox.frag");
+	skyShader->Attach();
+	skyShader->Link();
+	skyShader->Use();
+	skyShader->SetInt("skybox", 0);
+	mShaders["Sky"] = std::move(skyShader);
+
 	// Shadows
 	auto shadowShader = std::make_unique<Shader>();
 	shadowShader->CreateVS("Shader/Shadow.vert");
@@ -146,7 +236,7 @@ void Renderer::BuildShaders()
 	shadowShader->Attach();
 	shadowShader->Link();
 	shadowShader->Use();
-	// Main light: directional
+		// Main light: directional
 	glm::mat4 lightView = glm::lookAt(mLights[0]->position, mLights[0]->focalPoint, glm::vec3(0.f, 1.f, 0.f));
 	glm::mat4 lightProj = glm::ortho(-20.0f, 20.0f, -20.0f, 20.0f, 0.1f, 100.f);
 	shadowShader->SetMat4("lightProjView", lightProj * lightView);
@@ -201,21 +291,38 @@ void Renderer::BuildShaders()
 
 void Renderer::BuildMaterials()
 {
+	auto sky = std::make_unique<Material>();
+	sky->name = "sky";
+	sky->diffuseID = mTextures["skyBox"]->textureID;
+
+	auto defaultMat = std::make_unique<Material>();
+	defaultMat->name = "default";
+	defaultMat->albedo = glm::vec3(1.0f, 1.0f, 1.0f);
+	defaultMat->metallic = 0.1f;
+	defaultMat->roughness = 1.f;
+	defaultMat->ambientOcclusion = 0.f;
+
 	auto brick0 = std::make_unique<Material>();
 	brick0->name = "brick0";
-	brick0->diffuse = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
-	brick0->fresnelR0 = glm::vec3(0.1f, 0.1f, 0.1f);
-	brick0->roughness = 0.1f;
-	brick0->diffuseID = mTextures["bricksDiffuseMap"]->textureID;
-	brick0->normalID = mTextures["bricksNormalMap"]->textureID;
+	brick0->albedo = glm::vec3(1.0f, 1.0f, 1.0f);
+	brick0->metallic = 0.1f;
+	brick0->roughness = 0.8f;
+	brick0->ambientOcclusion = 0.f;
+	brick0->useDiffuse = true;
+	brick0->useNormal = true;
+	brick0->diffuseID = mTextures["brickWallDiffuseMap"]->textureID;
+	brick0->normalID = mTextures["brickWallNormalMap"]->textureID;
 
 	auto tile = std::make_unique<Material>();
 	tile->name = "tile";
-	tile->diffuse = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
-	tile->fresnelR0 = glm::vec3(0.1f, 0.1f, 0.1f);
-	tile->roughness = 0.1f;
-	tile->diffuseID = mTextures["tileDiffuseMap"]->textureID;
-	tile->normalID = mTextures["tileNormalMap"]->textureID;
+	tile->albedo = glm::vec3(1.0f, 1.0f, 1.0f);
+	tile->metallic = 0.1f;
+	tile->roughness = 0.8f;
+	tile->ambientOcclusion = 0.f;
+	tile->useDiffuse = true;
+	tile->useNormal = true;
+	tile->diffuseID = mTextures["brickWallDiffuseMap"]->textureID;
+	tile->normalID = mTextures["brickWallNormalMap"]->textureID;
 
 	auto light0 = std::make_unique<Material>();
 	light0->name = "light0";
@@ -225,6 +332,8 @@ void Renderer::BuildMaterials()
 	smoke->name = "smoke";
 	smoke->densityID = smokes["smoke"]->densityFieldID;
 
+	mMaterials["sky"] = std::move(sky);
+	mMaterials["default"] = std::move(defaultMat);
 	mMaterials["brick0"] = std::move(brick0);
 	mMaterials["tile"] = std::move(tile);
 	mMaterials["light0"] = std::move(light0);
@@ -232,8 +341,17 @@ void Renderer::BuildMaterials()
 
 void Renderer::BuildRenderItems()
 {
+	auto skyItem = std::make_unique<RenderItem>();
+	skyItem->name = "Sky";
+	skyItem->UpdateWorld();
+	skyItem->mat = mMaterials["sky"].get();
+	skyItem->geo = mGeometries["cube"].get();
+	mSkyItem = std::move(skyItem);
+
 	auto boxItem = std::make_unique<RenderItem>();
-	boxItem->world = glm::translate(glm::mat4(1.f), glm::vec3(0.f, 2.f, 0.f));
+	boxItem->name = "Box";
+	boxItem->position = glm::vec3(0.f, 2.f, 0.f);
+	boxItem->UpdateWorld();
 	boxItem->mat = mMaterials["brick0"].get();
 	boxItem->geo = mGeometries["box"].get();
 	boxItem->textureScale = 1;
@@ -241,15 +359,28 @@ void Renderer::BuildRenderItems()
 	mRenderItems.push_back(std::move(boxItem));
 
 	auto sphereItem = std::make_unique<RenderItem>();
-	sphereItem->world = glm::translate(glm::mat4(1.f), glm::vec3(3.f, 2.f, 0.f));
+	sphereItem->name = "Sphere";
+	sphereItem->position = glm::vec3(3.f, 2.f, 0.f);
+	sphereItem->UpdateWorld();
 	sphereItem->mat = mMaterials["brick0"].get();
 	sphereItem->geo = mGeometries["sphere"].get();
 	sphereItem->textureScale = 1;
 	mOpaqueItems.push_back(sphereItem.get());
 	mRenderItems.push_back(std::move(sphereItem));
 
+	auto sphereItem2 = std::make_unique<RenderItem>();
+	sphereItem2->name = "Sphere2";
+	sphereItem2->position = glm::vec3(0.f, 2.f, -2.f);
+	sphereItem2->UpdateWorld();
+	sphereItem2->mat = mMaterials["default"].get();
+	sphereItem2->geo = mGeometries["sphere"].get();
+	sphereItem2->textureScale = 1;
+	mOpaqueItems.push_back(sphereItem2.get());
+	mRenderItems.push_back(std::move(sphereItem2));
+
 	auto gridItem = std::make_unique<RenderItem>();
-	gridItem->world = glm::mat4(1.f);
+	gridItem->name = "Floor";
+	gridItem->UpdateWorld();
 	gridItem->mat = mMaterials["tile"].get();
 	gridItem->geo = mGeometries["grid"].get();
 	gridItem->textureScale = 5;
@@ -257,29 +388,41 @@ void Renderer::BuildRenderItems()
 	mRenderItems.push_back(std::move(gridItem));
 
 	auto smokeItem = std::make_unique<RenderItem>();
-	smokeItem->world = glm::translate(glm::mat4(1.f), glm::vec3(2.f, 5.f, 4.f));
-	smokeItem->world = glm::scale(smokeItem->world, glm::vec3(2.f, 8.f, 2.f));
+	smokeItem->name = "Smoke";
+	smokeItem->position = glm::vec3(2.f, 5.f, 4.f);
+	smokeItem->scale = glm::vec3(2.f, 8.f, 2.f);
+	smokeItem->UpdateWorld();
 	smokeItem->mat = mMaterials["brick0"].get();
-	smokeItem->geo = mGeometries["box"].get();
+	smokeItem->geo = mGeometries["cube"].get();
 	smokeItem->textureScale = 1;
 	mSmokeItems.push_back(smokeItem.get());
 	mRenderItems.push_back(std::move(smokeItem));
 
 	auto lightItem = std::make_unique<RenderItem>();
-	lightItem->world = glm::translate(glm::mat4(1.f), mLights[0]->position);
-	lightItem->world = glm::scale(lightItem->world, glm::vec3(0.3f));
+	lightItem->name = "DirectionalLight";
+	lightItem->position = mLights[0]->position;
+	lightItem->scale = glm::vec3(0.3f);
+	lightItem->UpdateWorld();
 	lightItem->mat = mMaterials["light0"].get();
-	lightItem->geo = mGeometries["box"].get();
+	lightItem->geo = mGeometries["cube"].get();
 	mLightItems.push_back(lightItem.get());
 	mRenderItems.push_back(std::move(lightItem));
 }
 
 void Renderer::UpdatePassCb()
 {
-	mPassCb.view = mCurrentCamera.GetViewMatrix();
-	mPassCb.proj = glm::perspective(glm::radians(mCurrentCamera.fov), (float)screenWidth / (float)screenHeight, mCurrentCamera.nearPlane, mCurrentCamera.farPlane);
-	mPassCb.eyePos = mCurrentCamera.position;
+	mPassCb.view = mCamera->GetViewMatrix();
+	mPassCb.proj = mCamera->GetProjMatrix();
+	mPassCb.eyePos = mCamera->position;
 	mPassCb.lightNum = mLights.size();
+}
+
+void Renderer::UpdateObjectCb()
+{
+	for (int i = 0; i < mRenderItems.size(); ++i)
+	{
+		mRenderItems[i]->UpdateWorld();
+	}
 }
 
 void Renderer::UpdateSmoke()
@@ -292,18 +435,20 @@ void Renderer::UpdateSmoke()
 
 void Renderer::Draw()
 {
-	while (!glfwWindowShouldClose(window))
+	while (!glfwWindowShouldClose(mWindow))
 	{
 		// Process input
 		float currentFrame = glfwGetTime();
 		deltaTime = currentFrame - lastFrame;
 		lastFrame = currentFrame;
-		ProcessInput(window);
+		ProcessInput(mWindow);
 
 		// Update info
 		UpdatePassCb();
+		UpdateObjectCb();
 		UpdateSmoke();
 
+		glBindFramebuffer(GL_FRAMEBUFFER, mSceneFB->GetFrameBufferID());
 		// Clear screen
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -315,10 +460,15 @@ void Renderer::Draw()
 		DrawLight();
 		DrawShadow();
 		DrawOpaque();
+		DrawSkyBox();
 		DrawSmoke();
 
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+		DrawImgui();
+
 		// glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
-		glfwSwapBuffers(window);
+		glfwSwapBuffers(mWindow);
 		glfwPollEvents();
 	}
 	GLFinish();
@@ -351,7 +501,7 @@ void Renderer::DrawShadow()
 		shadow->SetMat4("model", item->world);
 		item->Draw(shadow);
 	}
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, mSceneFB->GetFrameBufferID());
 	glViewport(0, 0, screenWidth, screenHeight);
 }
 
@@ -374,9 +524,12 @@ void Renderer::DrawOpaque()
 		glBindTexture(GL_TEXTURE_2D, item->mat->normalID);
 		shape->SetMat4("model", item->world);
 		shape->SetInt("textureScale", item->textureScale);
-		shape->SetVec4("material.diffuse", item->mat->diffuse);
-		shape->SetVec3("material.fresnelR0", item->mat->fresnelR0);
+		shape->SetVec3("material.albedo", item->mat->albedo);
+		shape->SetFloat("material.metallic", item->mat->metallic);
 		shape->SetFloat("material.roughness", item->mat->roughness);
+		shape->SetFloat("material.ao", item->mat->ambientOcclusion);
+		shape->SetFloat("material.useDiffuseMap", item->mat->useDiffuse);
+		shape->SetFloat("material.useNormalMap", item->mat->useNormal);
 		item->Draw(shape);
 	}
 }
@@ -404,6 +557,115 @@ void Renderer::DrawSmoke()
 	glDisable(GL_BLEND);
 }
 
+void Renderer::DrawSkyBox()
+{
+	glDepthFunc(GL_LEQUAL);
+	auto sky = mShaders["Sky"].get();
+	sky->Use();
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, mSkyItem->mat->densityID);
+	sky->SetMat4("view", glm::mat4(glm::mat3(mCamera->GetViewMatrix())));
+	sky->SetMat4("proj", mPassCb.proj);
+	mSkyItem->Draw(sky);
+	glDepthFunc(GL_LESS);
+}
+
+void Renderer::SetupImgui()
+{
+	// Setup Dear ImGui context
+	IMGUI_CHECKVERSION();
+	mSceneImGuiCtx = ImGui::CreateContext();
+	mUICtx = ImGui::CreateContext();
+
+	ImGuiIO& io = ImGui::GetIO(); (void)io;
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+	// Setup Dear ImGui style
+	ImGui::StyleColorsDark();
+
+	// Setup Platform/Renderer backends
+	ImGui_ImplGlfw_InitForOpenGL(mWindow, true);
+	ImGui_ImplOpenGL3_Init("#version 430");
+}
+
+void Renderer::DrawImgui()
+{
+	// Start the Dear ImGui frame
+	ImGui_ImplOpenGL3_NewFrame();
+	ImGui_ImplGlfw_NewFrame();
+	ImGui::NewFrame();
+
+	static int selected = 0;
+
+	{	// Scene
+		ImGui::Begin("Scene");
+		{
+			ImGui::BeginChild("SceneRender");
+			ImVec2 wsize = ImGui::GetWindowSize();
+			// Invert the V from the UV.
+			ImGui::Image((ImTextureID)mSceneFB->GetColorTextureID(), wsize, ImVec2(0, 1), ImVec2(1, 0));
+			ImGui::EndChild();
+		}
+		ImGui::End();
+	}
+
+	{	// RenderItems
+		ImGui::Begin("Objects");
+		{
+			ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+
+			
+			{
+				ImGui::BeginChild("left pane", ImVec2(150, 0), true);
+				for (int i = 0; i < mRenderItems.size(); i++)
+				{
+					if (ImGui::Selectable(mRenderItems[i]->name.c_str(), selected == i))
+						selected = i;
+				}
+				ImGui::EndChild();
+			}
+		}
+		ImGui::End();
+	}
+
+	{	// Details
+		ImGui::Begin("Details");
+		{
+			ImGui::Text(mRenderItems[selected]->name.c_str());
+			if (ImGui::CollapsingHeader("Transform"))
+			{
+				ImGui::LabelText("label", "Value");
+				{
+					ImGui::DragFloat3("translate", reinterpret_cast<float*>(&mRenderItems[selected]->position));
+					ImGui::DragFloat3("scale", reinterpret_cast<float*>(&mRenderItems[selected]->scale));
+				}
+			}
+			if (ImGui::CollapsingHeader("Matrial"))
+			{
+				ImGui::LabelText("label", "Value");
+				{
+					ImGui::DragFloat3("albedo", reinterpret_cast<float*>(&mRenderItems[selected]->mat->albedo), 0.01f, 0.f, 1.f);
+					ImGui::DragFloat("metallic", &mRenderItems[selected]->mat->metallic, 0.01f, 0.f, 1.f);
+					ImGui::DragFloat("roughness", &mRenderItems[selected]->mat->roughness, 0.01f, 0.f, 1.f);
+					ImGui::DragFloat("ao", &mRenderItems[selected]->mat->ambientOcclusion, 0.01f, 0.f, 1.f);
+				}
+			}
+		}
+		ImGui::End();
+	}
+
+	ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+	// Rendering
+	ImGui::Render();
+	int display_w, display_h;
+	glfwGetFramebufferSize(mWindow, &display_w, &display_h);
+	glViewport(0, 0, display_w, display_h);
+	glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
+	glClear(GL_COLOR_BUFFER_BIT);
+	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+}
+
 void Renderer::GLPrepare()
 {
 	// glfw: initialize and configure
@@ -413,21 +675,15 @@ void Renderer::GLPrepare()
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 	// glfw window creation
-	window = glfwCreateWindow(screenWidth, screenHeight, "MantaProject", NULL, NULL);
-	if (window == NULL)
+	mWindow = glfwCreateWindow(screenWidth, screenHeight, "MantaProject", NULL, NULL);
+	if (mWindow == NULL)
 	{
 		std::cout << "Failed to create GLFW window" << std::endl;
 		glfwTerminate();
 		return;
 	}
-	glfwMakeContextCurrent(window);
+	glfwMakeContextCurrent(mWindow);
 	typedef void* (*FUNC)(GLFWwindow*, int, int);
-	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-	glfwSetCursorPosCallback(window, mouse_callback);
-	glfwSetScrollCallback(window, scroll_callback);
-
-	// tell GLFW to capture our mouse
-	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	// glad: load all OpenGL function pointers
 	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
@@ -435,14 +691,12 @@ void Renderer::GLPrepare()
 		std::cout << "Failed to initialize GLAD" << std::endl;
 		return;
 	}
-
-	// init static camera for callback
-	lastX = screenWidth / 2.f;
-	lastY = screenHeight / 2.f;
 }
 
 void Renderer::GLFinish()
 {
+	ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext();
 	// glfw: terminate, clearing all previously allocated GLFW resources.
 	glfwTerminate();
 }
@@ -456,42 +710,30 @@ void Renderer::ProcessInput(GLFWwindow* window)
 	}
 
 	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-		mCurrentCamera.ProcessKeyboard(FORWARD, deltaTime);
+		mCamera->ProcessKeyboard(ECameraMovement::FORWARD, deltaTime);
 	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-		mCurrentCamera.ProcessKeyboard(BACKWARD, deltaTime);
+		mCamera->ProcessKeyboard(ECameraMovement::BACKWARD, deltaTime);
 	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-		mCurrentCamera.ProcessKeyboard(LEFT, deltaTime);
+		mCamera->ProcessKeyboard(ECameraMovement::LEFT, deltaTime);
 	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-		mCurrentCamera.ProcessKeyboard(RIGHT, deltaTime);
+		mCamera->ProcessKeyboard(ECameraMovement::RIGHT, deltaTime);
+
+	double x, y;
+	glfwGetCursorPos(mWindow, &x, &y);
+
+	mCamera->ProcessMouseMovement(x, y, GetPressedButton(mWindow));
 }
 
-void Renderer::framebuffer_size_callback(GLFWwindow* window, int width, int height)
+EInputButton Renderer::GetPressedButton(GLFWwindow* window)
 {
-	// make sure the viewport matches the new window dimensions; note that width and 
-	// height will be significantly larger than specified on retina displays.
-	glViewport(0, 0, width, height);
-}
+	EInputButton result = EInputButton::NONE;
 
-void Renderer::mouse_callback(GLFWwindow* window, double xpos, double ypos)
-{
-	if (firstMouse)
-	{
-		lastX = xpos;
-		lastY = ypos;
-		firstMouse = false;
-	}
+	if (glfwGetMouseButton(window, 0) == GLFW_PRESS)
+		return EInputButton::LEFT;
+	else if (glfwGetMouseButton(window, 1) == GLFW_PRESS)
+		return EInputButton::RIGHT;
+	else if (glfwGetMouseButton(window, 2) == GLFW_PRESS)
+		return EInputButton::MIDDLE;
 
-	float xoffset = xpos - lastX;
-	// reversed since y-coordinates go from bottom to top
-	float yoffset = lastY - ypos;
-
-	lastX = xpos;
-	lastY = ypos;
-
-	mCurrentCamera.ProcessMouseMovement(xoffset, yoffset);
-}
-
-void Renderer::scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
-{
-	mCurrentCamera.ProcessMouseScroll(yoffset);
+	return EInputButton::NONE;
 }

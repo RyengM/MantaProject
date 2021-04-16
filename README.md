@@ -24,7 +24,3 @@
 - rename folder as TBB
 - cd Build & cmake .. -G "Visual Studio 16 2019" -DTBB="ON"
 - manta -> VC++ Dictionaries -> Library Directories -> C:\Program Files\Intel\TBB\lib\intel64\vc14
-
-### Texture
-- download from git repository d3d12book
-- put textures into Renderer/Texture

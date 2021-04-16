@@ -1,49 +1,46 @@
 #include "Camera.h"
 
-void Camera::ProcessKeyboard(CameraMovement direction, float deltaTime)
+void Camera::ProcessKeyboard(ECameraMovement direction, float deltaTime)
 {
-	float velocity = movementSpeed * deltaTime;
-	if (direction == FORWARD)
-		position += front * velocity;
-	if (direction == BACKWARD)
-		position -= front * velocity;
-	if (direction == LEFT)
-		position -= right * velocity;
-	if (direction == RIGHT)
-		position += right * velocity;
-}
-
-void Camera::ProcessMouseMovement(float xoffset, float yoffset, bool constrainPitch)
-{
-	xoffset *= mouseSensitivity;
-	yoffset *= mouseSensitivity;
-
-	yaw += xoffset;
-	pitch += yoffset;
-
-	// make sure that when pitch is out of bounds, screen doesn't get flipped
-	if (constrainPitch)
+	if (active)
 	{
-		if (pitch > 89.0f)
-			pitch = 89.0f;
-		if (pitch < -89.0f)
-			pitch = -89.0f;
+		float velocity = movementSpeed * deltaTime;
+		if (direction == ECameraMovement::FORWARD)
+			position += front * velocity;
+		if (direction == ECameraMovement::BACKWARD)
+			position -= front * velocity;
+		if (direction == ECameraMovement::LEFT)
+			position -= right * velocity;
+		if (direction == ECameraMovement::RIGHT)
+			position += right * velocity;
+
+		UpdateView();
 	}
-
-	// update front, right and up Vectors using the updated Euler angles
-	updateCameraVectors();
 }
 
-void Camera::ProcessMouseScroll(float yoffset)
+void Camera::ProcessMouseMovement(float x, float y, EInputButton input)
 {
-	fov -= (float)yoffset;
-	if (fov < 1.0f)
-		fov = 1.0f;
-	if (fov > 45.0f)
-		fov = 45.0f;
+	glm::vec2 pos{x, y};
+
+	if (input == EInputButton::RIGHT)
+	{
+		active = true;
+		glm::vec2 delta = (pos - cursorLastPos) * mouseSensitivity;
+
+		float sign = up.y < 0 ? -1.0f : 1.0f;
+		yaw += sign * delta.x;
+		pitch -= delta.y;
+	}
+	else if (input == EInputButton::NONE)
+		active = false;
+
+	cursorLastPos = pos;
+
+	UpdateCameraVectors();
+	UpdateView();
 }
 
-void Camera::updateCameraVectors()
+void Camera::UpdateCameraVectors()
 {
 	// calculate the new front vector
 	glm::vec3 newFront;
