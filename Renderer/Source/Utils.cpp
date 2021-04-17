@@ -5,6 +5,34 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+void MeshGeometry::BuildResources()
+{
+	// Build GPU resource
+	glGenVertexArrays(1, &vao);
+	unsigned int vbo, ebo;
+	glGenBuffers(1, &vbo);
+	glGenBuffers(1, &ebo);
+	glBindVertexArray(vao);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	glBufferData(GL_ARRAY_BUFFER, mVertices.size() * sizeof(Vertex), &mVertices[0], GL_STATIC_DRAW);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, mIndices.size() * sizeof(unsigned int), &mIndices[0], GL_STATIC_DRAW);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Vertex::normal));
+	glEnableVertexAttribArray(2);
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Vertex::tangentU));
+	glEnableVertexAttribArray(3);
+	glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, Vertex::texC));
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+
+	mIndexCount = mIndices.size();
+
+	BuildBoundingBox();
+}
 
 void MeshGeometry::BuildResources(std::vector<Vertex>& vertices, std::vector<unsigned int>& indices)
 {
@@ -34,6 +62,8 @@ void MeshGeometry::BuildResources(std::vector<Vertex>& vertices, std::vector<uns
 	mVertices = std::move(vertices);
 	mIndices = std::move(indices);
 
+	mIndexCount = mIndices.size();
+
 	BuildBoundingBox();
 }
 
@@ -55,8 +85,20 @@ void MeshGeometry::Draw(Shader* shader)
 {
 	glBindVertexArray(vao);
 	//glDrawArrays(GL_TRIANGLES, 0, mVertices.size());
-	glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, &mIndices[0]);
+	glDrawElements(GL_TRIANGLES, mIndexCount, GL_UNSIGNED_INT, &mIndices[0]);
 	glBindVertexArray(0);
+}
+
+void ModelMesh::BuildResources(std::vector<ModelData> modelData)
+{
+	for (auto data : modelData)
+	{
+		MeshGeometry bunnyGeo;
+		bunnyGeo.mVertices = std::move(data.mVertices);
+		bunnyGeo.mIndices = std::move(data.mIndices);
+		bunnyGeo.BuildResources();
+		subMeshes.push_back(std::move(bunnyGeo));
+	}
 }
 
 void Texture::BuildResource(TinyddsLoader::DDSFile& ddsFile)

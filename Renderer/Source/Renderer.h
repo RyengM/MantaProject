@@ -4,6 +4,7 @@
 #include "Utils.h"
 #include "Camera.h"
 #include "FrameBufferObject.h"
+#include "MeshLoader.h"
 #include "Imgui/imgui.h"
 #include "Imgui/imgui_impl_glfw.h"
 #include "Imgui/imgui_impl_opengl3.h"
@@ -39,6 +40,7 @@ public:
 	void BuildShaders();
 	void BuildMaterials();
 	void BuildTextures();
+	void BuildModelMeshes();
 	void BuildRenderItems();
 
 	void UpdatePassCb();
@@ -67,9 +69,13 @@ private:
 	std::unique_ptr<Camera> mCamera;
 
 	TinyddsLoader::DDSFile DDSLoader;
+	MeshLoader mMeshLoader;
 
 	std::unordered_map<std::string, std::unique_ptr<Shader>> mShaders;
+	// Built-in geometry data
 	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
+	// Model geometry data
+	std::unordered_map<std::string, std::unique_ptr<ModelMesh>> mModelMeshes;
 	std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
 	std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
 	std::vector<std::unique_ptr<RenderItem>> mRenderItems;
@@ -100,14 +106,3 @@ private:
 	float lastFrame = 0.f;
 	float deltaTime = 0.f;
 };
-
-// =========================================================================
-// Static camera and related parameters for callback 
-//static Camera mCurrentCamera;
-//// Mouse position at last frame
-//static float lastX;
-//static float lastY;
-//static bool firstMouse = true;
-//// Timing
-//static float deltaTime = 0.f;	// time between current frame and last frame
-//static float lastFrame = 0.f;

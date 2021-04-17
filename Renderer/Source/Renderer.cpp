@@ -21,6 +21,7 @@ void Renderer::Init()
 	BuildGeometries();
 	BuildMaterials();
 	BuildShaders();
+	BuildModelMeshes();
 	BuildRenderItems();
 }
 
@@ -155,19 +156,15 @@ void Renderer::BuildGeometries()
 
 	MeshGeometry cubeMesh;
 	cubeMesh.name = "cube";
-	cubeMesh.indexCount = (unsigned int)cube.Indices32.size();
 
 	MeshGeometry boxMesh;
 	boxMesh.name = "box";
-	boxMesh.indexCount = (unsigned int)box.Indices32.size();
 
 	MeshGeometry gridMesh;
 	gridMesh.name = "grid";
-	gridMesh.indexCount = (unsigned int)grid.Indices32.size();
 
 	MeshGeometry sphereMesh;
 	sphereMesh.name = "sphere";
-	sphereMesh.indexCount = (unsigned int)sphere.Indices32.size();
 	
 	std::vector<Vertex> cubeVertices(cube.Vertices.size());
 	std::vector<Vertex> boxVertices(box.Vertices.size());
@@ -339,8 +336,33 @@ void Renderer::BuildMaterials()
 	mMaterials["light0"] = std::move(light0);
 }
 
+void Renderer::BuildModelMeshes()
+{
+	auto bunnyData = mMeshLoader.LoadModel("Model/bunny.obj");
+	auto bunnyModel = std::make_unique<ModelMesh>();
+	bunnyModel->name = "Bunny";
+	bunnyModel->position = glm::vec3(-2.f, 2.f, -2.f);
+	bunnyModel->BuildResources(bunnyData);
+	mModelMeshes[bunnyModel->name] = std::move(bunnyModel);
+}
+
 void Renderer::BuildRenderItems()
 {
+	for (auto iter = mModelMeshes.begin(); iter != mModelMeshes.end(); ++iter)
+	{
+		for (auto& subMesh : iter->second->subMeshes)
+		{
+			auto item = std::make_unique<RenderItem>();
+			item->name = iter->second->name;
+			item->position = iter->second->position;
+			item->UpdateWorld();
+			item->geo = &subMesh;
+			item->mat = mMaterials["default"].get();
+			mOpaqueItems.push_back(item.get());
+			mRenderItems.push_back(std::move(item));
+		}
+	}
+
 	auto skyItem = std::make_unique<RenderItem>();
 	skyItem->name = "Sky";
 	skyItem->UpdateWorld();

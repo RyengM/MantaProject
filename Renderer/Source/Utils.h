@@ -24,7 +24,7 @@ struct MeshGeometry
 {
 	std::string name;
 
-	unsigned int indexCount = 0;
+	unsigned int mIndexCount = 0;
 	// GPU resource: vertex array
 	unsigned int vao;
 	// CPU resource: vertex array
@@ -33,9 +33,29 @@ struct MeshGeometry
 
 	BoundingBox bounds;
 
+	void BuildResources();
 	void BuildResources(std::vector<Vertex>& vertices, std::vector<unsigned int>& indices);
 	void BuildBoundingBox();
 	void Draw(Shader* shader);
+};
+
+// Data transmitted by mesh loader
+struct ModelData
+{
+	std::vector<Vertex> mVertices;
+	std::vector<unsigned int> mIndices;
+};
+
+struct ModelMesh
+{
+	std::string name;
+	std::vector<MeshGeometry> subMeshes;
+
+	glm::vec3 position;
+
+	BoundingBox bounds;
+
+	void BuildResources(std::vector<ModelData> modelData);
 };
 
 struct Light
@@ -69,6 +89,7 @@ struct Material
 
 	unsigned int diffuseID = -1;
 	unsigned int normalID = -1;
+	// 3D texture
 	unsigned int densityID = -1;
 };
 
