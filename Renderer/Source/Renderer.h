@@ -20,7 +20,10 @@ public:
 	// Prepare OpenGL, set shaders, textures, etc
 	void Init();
 
-	// Draw a frame using double frame buffer
+	// Update necessary data
+	void Update();
+
+	// Draw a frame using frame buffer
 	void Draw();
 
 	// Process keyboard mouse etc input
@@ -46,12 +49,15 @@ public:
 	void UpdatePassCb();
 	void UpdateObjectCb();
 	void UpdateSmoke();
+	void UpdateDrawData();
 
 	void DrawOpaque();
 	void DrawShadow();
 	void DrawLight();
 	void DrawSmoke();
 	void DrawSkyBox();
+	void DrawDebugRT();
+	void DrawBoundingBox();
 
 	// Imgui configs
 	void SetupImgui();
@@ -60,6 +66,7 @@ public:
 	static EInputButton GetPressedButton(GLFWwindow* window);
 
 public:
+	bool bUseSmoke = false;
 	std::mutex phyxMutex;
 	int exit = 0;
 
@@ -68,7 +75,7 @@ public:
 private:
 	std::unique_ptr<Camera> mCamera;
 
-	TinyddsLoader::DDSFile DDSLoader;
+	TinyddsLoader::DDSFile mDDSLoader;
 	MeshLoader mMeshLoader;
 
 	std::unordered_map<std::string, std::unique_ptr<Shader>> mShaders;
@@ -79,6 +86,8 @@ private:
 	std::unordered_map<std::string, std::unique_ptr<Texture>> mTextures;
 	std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
 	std::vector<std::unique_ptr<RenderItem>> mRenderItems;
+	std::vector<std::unique_ptr<RenderItem>> mDebugRenderItems;
+	std::vector<std::unique_ptr<RenderItem>> mBoundingBoxRenderItems;
 
 	std::vector<RenderItem*> mOpaqueItems;
 	std::vector<RenderItem*> mLightItems;
@@ -92,11 +101,10 @@ private:
 
 	std::unique_ptr<ShadowMap> mShadowMap;
 	std::unique_ptr<GameFrameBufferObject> mSceneFB;
+	std::unique_ptr<GameFrameBufferObject> mDebugFB;
 
 	ImGuiContext* mSceneImGuiCtx = nullptr;
 	ImGuiContext* mUICtx = nullptr;
-
-	//std::unique_ptr<ImGuiContext> mGameContext;
 
 	GLFWwindow* mWindow = nullptr;
 	const unsigned int screenWidth = 1920;
@@ -105,4 +113,8 @@ private:
 	// Time
 	float lastFrame = 0.f;
 	float deltaTime = 0.f;
+
+	// Culling and flags
+	bool bShowBoundingBox = false;
+	int numObjVisible = 0;
 };

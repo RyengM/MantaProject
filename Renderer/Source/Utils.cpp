@@ -79,13 +79,22 @@ void MeshGeometry::BuildBoundingBox()
 		bounds.bbMax.y = bounds.bbMax.y > v.y ? bounds.bbMax.y : v.y;
 		bounds.bbMax.z = bounds.bbMax.z > v.z ? bounds.bbMax.z : v.z;
 	}
+
+	bounds.center = (bounds.bbMax + bounds.bbMin) / 2.f;
+	bounds.entents = (bounds.bbMax - bounds.bbMin) / 2.f;
 }
 
 void MeshGeometry::Draw(Shader* shader)
 {
 	glBindVertexArray(vao);
-	//glDrawArrays(GL_TRIANGLES, 0, mVertices.size());
 	glDrawElements(GL_TRIANGLES, mIndexCount, GL_UNSIGNED_INT, &mIndices[0]);
+	glBindVertexArray(0);
+}
+
+void MeshGeometry::DrawLines(Shader* shader)
+{
+	glBindVertexArray(vao);
+	glDrawElements(GL_LINES, mIndexCount, GL_UNSIGNED_INT, &mIndices[0]);
 	glBindVertexArray(0);
 }
 
@@ -133,6 +142,11 @@ void RenderItem::Draw(Shader* shader)
 	geo->Draw(shader);
 }
 
+void RenderItem::DrawLines(Shader* shader)
+{
+	geo->DrawLines(shader);
+}
+
 void Smoke::BuildResource()
 {
 	glEnable(GL_TEXTURE_3D);
@@ -145,8 +159,8 @@ void Smoke::BuildResource()
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glBindTexture(GL_TEXTURE_3D, 0);
 
-	density = (float*)malloc(32 * 128 * 32 * sizeof(float));
-	memset(density, 0, 32 * 128 * 32 * sizeof(float));
+	density = (float*)malloc(nx * ny * nz* sizeof(float));
+	memset(density, 0, nx * ny * nz * sizeof(float));
 }
 
 Smoke::~Smoke()

@@ -1,4 +1,5 @@
 #include "Renderer.h"
+#include "Collision.h"
 #include <glad/glad.h>
 #include <iostream>
 
@@ -31,6 +32,8 @@ void Renderer::BuildFrameBuffers()
 	mShadowMap->BuildFrameBuffer();
 	mSceneFB = std::make_unique<GameFrameBufferObject>(1920, 1080);
 	mSceneFB->BuildFrameBuffer();
+	mDebugFB = std::make_unique<GameFrameBufferObject>(1920, 1080);
+	mDebugFB->BuildFrameBuffer();
 }
 
 void Renderer::BuildLights()
@@ -52,7 +55,7 @@ void Renderer::BuildLights()
 
 void Renderer::BuildSmokes()
 {
-	auto smoke = std::make_unique<Smoke>();
+	auto smoke = std::make_unique<Smoke>(32, 64, 32);
 	smoke->name = "smoke";
 	smoke->BuildResource();
 	smokes[smoke->name] = std::move(smoke);
@@ -111,13 +114,13 @@ void Renderer::BuildTextures()
 	//	auto texMap = std::make_unique<Texture>();
 	//	texMap->name = ddsTexNames[i];
 	//	texMap->path = ddsTexFilenames[i];
-	//	auto ret = DDSLoader.Load(texMap->path.c_str());
+	//	auto ret = mDDSLoader.Load(texMap->path.c_str());
 	//	if (ret != TinyddsLoader::Result::Success)
 	//	{
 	//		std::cout << "Failed to load.[" << texMap->path << "]\n";
 	//		std::cout << "Result : " << int(ret) << "\n";
 	//	}
-	//	texMap->BuildResource(DDSLoader);
+	//	texMap->BuildResource(mDDSLoader);
 
 	//	mTextures[texMap->name] = std::move(texMap);
 	//}
@@ -149,27 +152,31 @@ void Renderer::BuildTextures()
 void Renderer::BuildGeometries()
 {
 	GeometryGenerator geoGen;
+	GeometryGenerator::MeshData quad = geoGen.CreateQuad(-1.f, 1.f, 2.f, 2.f, 0.f);
 	GeometryGenerator::MeshData cube = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 0);
 	GeometryGenerator::MeshData box = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);
 	GeometryGenerator::MeshData grid = geoGen.CreateGrid(20.0f, 30.0f, 60, 40);
 	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
 
-	MeshGeometry cubeMesh;
-	cubeMesh.name = "cube";
-
-	MeshGeometry boxMesh;
-	boxMesh.name = "box";
-
-	MeshGeometry gridMesh;
-	gridMesh.name = "grid";
-
-	MeshGeometry sphereMesh;
-	sphereMesh.name = "sphere";
+	MeshGeometry quadMesh("quad");
+	MeshGeometry cubeMesh("cube");
+	MeshGeometry boxMesh("box");
+	MeshGeometry gridMesh("gird");
+	MeshGeometry sphereMesh("sphere");
 	
+	std::vector<Vertex> quadVertices(quad.Vertices.size());
 	std::vector<Vertex> cubeVertices(cube.Vertices.size());
 	std::vector<Vertex> boxVertices(box.Vertices.size());
 	std::vector<Vertex> gridVertices(grid.Vertices.size());
 	std::vector<Vertex> sphereVertices(sphere.Vertices.size());
+
+	for (size_t i = 0; i < quad.Vertices.size(); ++i)
+	{
+		quadVertices[i].pos = quad.Vertices[i].Position;
+		quadVertices[i].normal = quad.Vertices[i].Normal;
+		quadVertices[i].tangentU = quad.Vertices[i].TangentU;
+		quadVertices[i].texC = quad.Vertices[i].TexC;
+	}
 
 	for (size_t i = 0; i < cube.Vertices.size(); ++i)
 	{
@@ -203,11 +210,13 @@ void Renderer::BuildGeometries()
 		sphereVertices[i].texC = sphere.Vertices[i].TexC;
 	}
 
+	quadMesh.BuildResources(quadVertices, quad.Indices32);
 	cubeMesh.BuildResources(cubeVertices, cube.Indices32);
 	boxMesh.BuildResources(boxVertices, box.Indices32);
 	gridMesh.BuildResources(gridVertices, grid.Indices32);
 	sphereMesh.BuildResources(sphereVertices, sphere.Indices32);
 
+	mGeometries["quad"] = std::move(std::make_unique<MeshGeometry>(quadMesh));
 	mGeometries["cube"] = std::move(std::make_unique<MeshGeometry>(cubeMesh));
 	mGeometries["box"] = std::move(std::make_unique<MeshGeometry>(boxMesh));
 	mGeometries["grid"] = std::move(std::make_unique<MeshGeometry>(gridMesh));
@@ -283,7 +292,27 @@ void Renderer::BuildShaders()
 		smokeShader->SetVec3("light.strength", mLights[i]->strength);
 		smokeShader->SetVec3("light.dir", mLights[i]->focalPoint - mLights[i]->position);
 	}
+	smokeShader->SetInt("sceneDepthTexture", 1);
 	mShaders["Smoke"] = std::move(smokeShader);
+
+	// DebugRT
+	auto debugShader = std::make_unique<Shader>();
+	debugShader->CreateVS("Shader/DebugRT.vert");
+	debugShader->CreatePS("Shader/DebugRT.frag");
+	debugShader->Attach();
+	debugShader->Link();
+	debugShader->Use();
+	debugShader->SetInt("rt", 0);
+	mShaders["Debug"] = std::move(debugShader);
+
+	// Debug BoundingBox
+	auto boundingBoxShader = std::make_unique<Shader>();
+	boundingBoxShader->CreateVS("Shader/BoundingBox.vert");
+	boundingBoxShader->CreatePS("Shader/BoundingBox.frag");
+	boundingBoxShader->Attach();
+	boundingBoxShader->Link();
+	boundingBoxShader->Use();
+	mShaders["BoundingBox"] = std::move(boundingBoxShader);
 }
 
 void Renderer::BuildMaterials()
@@ -409,16 +438,19 @@ void Renderer::BuildRenderItems()
 	mOpaqueItems.push_back(gridItem.get());
 	mRenderItems.push_back(std::move(gridItem));
 
-	auto smokeItem = std::make_unique<RenderItem>();
-	smokeItem->name = "Smoke";
-	smokeItem->position = glm::vec3(2.f, 5.f, 4.f);
-	smokeItem->scale = glm::vec3(2.f, 8.f, 2.f);
-	smokeItem->UpdateWorld();
-	smokeItem->mat = mMaterials["brick0"].get();
-	smokeItem->geo = mGeometries["cube"].get();
-	smokeItem->textureScale = 1;
-	mSmokeItems.push_back(smokeItem.get());
-	mRenderItems.push_back(std::move(smokeItem));
+	if (bUseSmoke)
+	{
+		auto smokeItem = std::make_unique<RenderItem>();
+		smokeItem->name = "Smoke";
+		smokeItem->position = glm::vec3(2.f, 5.f, 4.f);
+		smokeItem->scale = glm::vec3(smokes["smoke"]->nx / 16, smokes["smoke"]->ny / 16, smokes["smoke"]->nz / 16);
+		smokeItem->UpdateWorld();
+		smokeItem->mat = mMaterials["brick0"].get();
+		smokeItem->geo = mGeometries["cube"].get();
+		smokeItem->textureScale = 1;
+		mSmokeItems.push_back(smokeItem.get());
+		mRenderItems.push_back(std::move(smokeItem));
+	}
 
 	auto lightItem = std::make_unique<RenderItem>();
 	lightItem->name = "DirectionalLight";
@@ -429,6 +461,31 @@ void Renderer::BuildRenderItems()
 	lightItem->geo = mGeometries["cube"].get();
 	mLightItems.push_back(lightItem.get());
 	mRenderItems.push_back(std::move(lightItem));
+
+	auto debugItem = std::make_unique<RenderItem>();
+	debugItem->name = "debugRT1";
+	debugItem->geo = mGeometries["quad"].get();
+	mDebugRenderItems.push_back(std::move(debugItem));
+
+	for (int i = 0; i < mRenderItems.size(); i++)
+	{
+		auto opaqueItem = mRenderItems[i].get();
+		auto item = std::make_unique<RenderItem>();
+		item->position = opaqueItem->position + opaqueItem->geo->bounds.center;
+		item->scale = glm::vec3(opaqueItem->geo->bounds.entents.x * 2 * opaqueItem->scale.x, opaqueItem->geo->bounds.entents.y * 2 * opaqueItem->scale.y, opaqueItem->geo->bounds.entents.z * 2 * opaqueItem->scale.z);
+		item->UpdateWorld();
+		item->mat = mMaterials["default"].get();
+		item->geo = mGeometries["cube"].get();
+		mBoundingBoxRenderItems.push_back(std::move(item));
+	}
+}
+
+void Renderer::Update()
+{
+	UpdatePassCb();
+	UpdateObjectCb();
+	UpdateSmoke();
+	UpdateDrawData();
 }
 
 void Renderer::UpdatePassCb()
@@ -451,8 +508,39 @@ void Renderer::UpdateSmoke()
 {
 	phyxMutex.lock();
 	glBindTexture(GL_TEXTURE_3D, smokes["smoke"]->densityFieldID);
-	glTexImage3D(GL_TEXTURE_3D, 0, GL_R8, 32, 128, 32, 0, GL_RED, GL_FLOAT, &smokes["smoke"]->density[0]);
+	glTexImage3D(GL_TEXTURE_3D, 0, GL_R8, smokes["smoke"]->nx, smokes["smoke"]->ny, smokes["smoke"]->nz, 0, GL_RED, GL_FLOAT, &smokes["smoke"]->density[0]);
 	phyxMutex.unlock();
+}
+
+void Renderer::UpdateDrawData()
+{
+	glm::mat4 vp = mCamera->GetViewProjMatrix();
+
+	numObjVisible = 0;
+	for (int i = 0; i < mRenderItems.size(); i++)
+	{
+		glm::mat4 mvp = vp * mRenderItems[i]->world;
+		BoundingFrustum localFrustum;
+		localFrustum.ExtractFrustumFromMatrix(mvp);
+		IntersectType type = localFrustum.ContainAxisAlignedBox(mRenderItems[i]->geo->bounds, glm::vec3(glm::inverse(mRenderItems[i]->world) * glm::vec4(mCamera->position, 1.f)));
+		if (type == IntersectType::DISJOINT) mRenderItems[i]->bCulled = true;
+		else
+		{
+			mRenderItems[i]->bCulled = false;
+			numObjVisible++;
+		}
+	}
+
+	if (bShowBoundingBox)
+	{
+		for (int i = 0; i < mRenderItems.size(); i++)
+		{
+			mBoundingBoxRenderItems[i]->bCulled = mRenderItems[i]->bCulled;
+			mBoundingBoxRenderItems[i]->position = mRenderItems[i]->position + mRenderItems[i]->geo->bounds.center;
+			mBoundingBoxRenderItems[i]->scale = glm::vec3(mRenderItems[i]->geo->bounds.entents.x * 2 * mRenderItems[i]->scale.x, mRenderItems[i]->geo->bounds.entents.y * 2 * mRenderItems[i]->scale.y, mRenderItems[i]->geo->bounds.entents.z * 2 * mRenderItems[i]->scale.z);;
+			mBoundingBoxRenderItems[i]->UpdateWorld();
+		}
+	}
 }
 
 void Renderer::Draw()
@@ -466,9 +554,7 @@ void Renderer::Draw()
 		ProcessInput(mWindow);
 
 		// Update info
-		UpdatePassCb();
-		UpdateObjectCb();
-		UpdateSmoke();
+		Update();
 
 		glBindFramebuffer(GL_FRAMEBUFFER, mSceneFB->GetFrameBufferID());
 		// Clear screen
@@ -482,8 +568,12 @@ void Renderer::Draw()
 		DrawLight();
 		DrawShadow();
 		DrawOpaque();
+		if (bShowBoundingBox)
+			DrawBoundingBox();
 		DrawSkyBox();
-		DrawSmoke();
+		if (bUseSmoke)
+			DrawSmoke();
+		DrawDebugRT();
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -540,6 +630,7 @@ void Renderer::DrawOpaque()
 	glBindTexture(GL_TEXTURE_2D, mShadowMap.get()->GetFrameBufferID());
 	for (auto item : mOpaqueItems)
 	{
+		if (item->bCulled) continue;
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, item->mat->diffuseID);
 		glActiveTexture(GL_TEXTURE1);
@@ -560,6 +651,7 @@ void Renderer::DrawSmoke()
 {
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glDisable(GL_DEPTH_TEST);
 	auto smoke = mShaders["Smoke"].get();
 	smoke->Use();
 	smoke->SetMat4("passCb.view", mPassCb.view);
@@ -571,12 +663,20 @@ void Renderer::DrawSmoke()
 	for (auto item : mSmokeItems)
 	{
 		glBindTexture(GL_TEXTURE_3D, item->mat->densityID);
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, mSceneFB->GetDepthTextureID());
 		smoke->SetMat4("model", item->world);
 		smoke->SetVec3("bbMin", item->geo->bounds.bbMin);
 		smoke->SetVec3("bbMax", item->geo->bounds.bbMax);
+		smoke->SetVec3("lookDir", mCamera->front);
+		smoke->SetFloat("nearPlane", mCamera->nearPlane);
+		smoke->SetFloat("farPlane", mCamera->farPlane);
+		smoke->SetFloat("xResolution", mSceneFB->GetWidth());
+		smoke->SetFloat("yResolution", mSceneFB->GetHeight());
 		item->Draw(smoke);
 	}
 	glDisable(GL_BLEND);
+	glEnable(GL_DEPTH_TEST);
 }
 
 void Renderer::DrawSkyBox()
@@ -590,6 +690,34 @@ void Renderer::DrawSkyBox()
 	sky->SetMat4("proj", mPassCb.proj);
 	mSkyItem->Draw(sky);
 	glDepthFunc(GL_LESS);
+}
+
+void Renderer::DrawDebugRT()
+{
+	glBindFramebuffer(GL_FRAMEBUFFER, mDebugFB->GetFrameBufferID());
+	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	auto debug = mShaders["Debug"].get();
+	debug->Use();
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, mSceneFB->GetDepthTextureID());
+	mDebugRenderItems[0]->Draw(debug);
+	glBindFramebuffer(GL_FRAMEBUFFER, mSceneFB->GetFrameBufferID());
+}
+
+void Renderer::DrawBoundingBox()
+{
+	auto boundingBox = mShaders["BoundingBox"].get();
+	boundingBox->Use();
+	boundingBox->SetMat4("passCb.view", mPassCb.view);
+	boundingBox->SetMat4("passCb.proj", mPassCb.proj);
+	for (int i = 0; i < mBoundingBoxRenderItems.size(); ++i)
+	{
+		auto item = mBoundingBoxRenderItems[i].get();
+		if (item->bCulled) continue;
+		boundingBox->SetMat4("model", item->world);
+		item->DrawLines(boundingBox);
+	}
 }
 
 void Renderer::SetupImgui()
@@ -632,20 +760,28 @@ void Renderer::DrawImgui()
 		ImGui::End();
 	}
 
+	{	// Debug
+		ImGui::Begin("DebugRT");
+		{
+			ImGui::BeginChild("RT");
+			ImVec2 wsize = ImGui::GetWindowSize();
+			ImGui::Image((ImTextureID)mDebugFB->GetColorTextureID(), wsize, ImVec2(0, 1), ImVec2(1, 0));
+			ImGui::EndChild();
+		}
+		ImGui::End();
+	}
+
 	{	// RenderItems
 		ImGui::Begin("Objects");
 		{
 			ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+			ImGui::Text("Visible render item number: %d", numObjVisible);
+			ImGui::Checkbox("Show BoundingBox", &bShowBoundingBox);
 
-			
+			for (int i = 0; i < mRenderItems.size(); i++)
 			{
-				ImGui::BeginChild("left pane", ImVec2(150, 0), true);
-				for (int i = 0; i < mRenderItems.size(); i++)
-				{
-					if (ImGui::Selectable(mRenderItems[i]->name.c_str(), selected == i))
-						selected = i;
-				}
-				ImGui::EndChild();
+				if (ImGui::Selectable(mRenderItems[i]->name.c_str(), selected == i))
+					selected = i;
 			}
 		}
 		ImGui::End();
@@ -671,6 +807,17 @@ void Renderer::DrawImgui()
 					ImGui::DragFloat("metallic", &mRenderItems[selected]->mat->metallic, 0.01f, 0.f, 1.f);
 					ImGui::DragFloat("roughness", &mRenderItems[selected]->mat->roughness, 0.01f, 0.f, 1.f);
 					ImGui::DragFloat("ao", &mRenderItems[selected]->mat->ambientOcclusion, 0.01f, 0.f, 1.f);
+				}
+			}
+			if (mRenderItems[selected]->name == "Smoke")
+			{
+				if (ImGui::CollapsingHeader("Smoke"))
+				{
+					ImGui::LabelText("label", "Value");
+					{
+						ImGui::DragFloat3("force", reinterpret_cast<float*>(&smokes["smoke"]->force), 0.00005f, -0.001f, 0.001f);
+						ImGui::DragFloat("decay", &smokes["smoke"]->decay, 0.0005f, 0.f, 0.1f);
+					}
 				}
 			}
 		}

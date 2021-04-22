@@ -14,14 +14,20 @@ struct Vertex
 };
 
 // AABB
-struct BoundingBox
+struct AxisAlignedBoundingBox
 {
 	glm::vec3 bbMin = std::numeric_limits<glm::vec3>::max();
 	glm::vec3 bbMax = std::numeric_limits<glm::vec3>::min();
+
+	glm::vec3 center;
+	glm::vec3 entents;
 };
 
 struct MeshGeometry
 {
+	MeshGeometry() {};
+	MeshGeometry(std::string name) : name(name) {};
+
 	std::string name;
 
 	unsigned int mIndexCount = 0;
@@ -31,12 +37,13 @@ struct MeshGeometry
 	std::vector<Vertex> mVertices;
 	std::vector<unsigned int> mIndices;
 
-	BoundingBox bounds;
+	AxisAlignedBoundingBox bounds;
 
 	void BuildResources();
 	void BuildResources(std::vector<Vertex>& vertices, std::vector<unsigned int>& indices);
 	void BuildBoundingBox();
 	void Draw(Shader* shader);
+	void DrawLines(Shader* shader);
 };
 
 // Data transmitted by mesh loader
@@ -53,7 +60,7 @@ struct ModelMesh
 
 	glm::vec3 position;
 
-	BoundingBox bounds;
+	AxisAlignedBoundingBox bounds;
 
 	void BuildResources(std::vector<ModelData> modelData);
 };
@@ -81,7 +88,7 @@ struct Material
 	glm::vec3 albedo = glm::vec3(0.1);
 	float metallic = 0.1;
 	float roughness = 0.1;
-	float ambientOcclusion = 0;
+	float ambientOcclusion = 1.f;
 	glm::vec3 emmisive = glm::vec3(0.0, 0.0, 0.0);
 
 	bool useDiffuse = false;
@@ -119,7 +126,7 @@ struct RenderItem
 	RenderItem() = default;
 	RenderItem(const RenderItem& rhs) = delete;
 
-	std::string name;
+	std::string name = "";
 
 	glm::vec3 position = glm::vec3(0.f);
 	glm::vec3 scale = glm::vec3(1.f);
@@ -130,17 +137,28 @@ struct RenderItem
 
 	int textureScale = 1;
 
+	bool bCulled = false;
+
 	void UpdateWorld();
 
 	void Draw(Shader* shader);
-
+	void DrawLines(Shader* shader);
 };
 
 struct Smoke
 {
+	Smoke(int x, int y, int z) : nx(x), ny(y), nz(z) {};
+
 	std::string name;
 	unsigned int densityFieldID = -1;
 	float* density;
+	
+	int nx = 0;
+	int ny = 0;
+	int nz = 0;
+
+	float decay = 0.05f;
+	glm::vec3 force = glm::vec3(0, 0, 0);
 
 	void BuildResource();
 	~Smoke();

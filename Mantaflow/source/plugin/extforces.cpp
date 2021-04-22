@@ -317,4 +317,14 @@ PYTHON() void addForceField(FlagGrid& flags, MACGrid& vel, Grid<Vec3>& force) {
 	KnAddForceField(flags, vel, force);
 }
 
+KERNEL(bnd = 1) void KnDecayDensity(FlagGrid& flags, Grid<Real>& density, Real decay, Vec3 source) {
+	if (!flags.isFluid(i, j, k)) return;
+	Real d = 1.0 / (abs(i - source.x) + abs(j - source.y) + abs(k - source.z));
+	density(i, j, k) *= pow(d, double(decay));
+}
+
+PYTHON() void decayDensity(FlagGrid& flags, Grid<Real>& density, Real decay, Vec3 source) {
+	KnDecayDensity(flags, density, decay, source);
+}
+
 } // namespace

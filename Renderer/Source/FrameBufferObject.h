@@ -40,10 +40,12 @@ public:
 
 	inline unsigned int GetFrameBufferID() { return frameBufferID; };
 	inline unsigned int GetColorTextureID() { return colorTextrueID; };
+	inline unsigned int GetDepthTextureID() { return depthTextrueID; };
 
 private:
 	unsigned int frameBufferID = -1;
 	unsigned int colorTextrueID = -1;
+	unsigned int depthTextrueID = -1;
 	int width = 0;
 	int height = 0;
 };

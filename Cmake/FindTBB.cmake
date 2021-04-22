@@ -182,22 +182,22 @@ macro(TBB_CORRECT_LIB_DIR var_name)
     string(REPLACE vc10 "${_TBB_COMPILER}" ${var_name} ${${var_name}})
 endmacro(TBB_CORRECT_LIB_DIR var_content)
 
-
+message(${_TBB_INSTALL_DIR})
 #-- Look for include directory and set ${TBB_INCLUDE_DIR}
 set (TBB_INC_SEARCH_DIR ${_TBB_INSTALL_DIR}/include)
 # Jiri: tbbvars now sets the CPATH environment variable to the directory
 #       containing the headers.
 find_path(TBB_INCLUDE_DIR
-    tbb/task_scheduler_init.h
+    tbb/task_scheduler_observer.h
     PATHS ${TBB_INC_SEARCH_DIR} ENV CPATH
 )
 mark_as_advanced(TBB_INCLUDE_DIR)
 
-set (_TBB_LIBRARY_DIR "${_TBB_INSTALL_DIR}/lib/${_TBB_ARCHITECTURE}/${_TBB_COMPILER}" ${_TBB_LIBRARY_DIR})
+set (_TBB_LIBRARY_DIR "${_TBB_INSTALL_DIR}/lib/${_TBB_ARCHITECTURE}/${_TBB_COMPILER}/vc14" ${_TBB_LIBRARY_DIR})
 message(${TBB_INC_SEARCH_DIR})
 message(${_TBB_LIBRARY_DIR})
 # GvdB: Mac OS X distribution places libraries directly in lib directory.
-list(APPEND _TBB_LIBRARY_DIR ${_TBB_INSTALL_DIR}/lib)
+# list(APPEND _TBB_LIBRARY_DIR ${_TBB_INSTALL_DIR}/lib)
 
 # Jiri: No reason not to check the default paths. From recent versions,
 #       tbbvars has started exporting the LIBRARY_PATH and LD_LIBRARY_PATH
@@ -262,7 +262,7 @@ endif (NOT _TBB_INSTALL_DIR)
 
 if (TBB_FOUND)
 	set(TBB_INTERFACE_VERSION 0)
-	FILE(READ "${TBB_INCLUDE_DIRS}/tbb/tbb_stddef.h" _TBB_VERSION_CONTENTS)
+	FILE(READ "${TBB_INCLUDE_DIRS}/tbb/version.h" _TBB_VERSION_CONTENTS)
 	STRING(REGEX REPLACE ".*#define TBB_INTERFACE_VERSION ([0-9]+).*" "\\1" TBB_INTERFACE_VERSION "${_TBB_VERSION_CONTENTS}")
 	set(TBB_INTERFACE_VERSION "${TBB_INTERFACE_VERSION}")
 endif (TBB_FOUND)

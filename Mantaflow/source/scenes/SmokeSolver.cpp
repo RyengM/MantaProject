@@ -9,23 +9,24 @@
 
 using namespace Manta;
 
-void SmokeSolver::Run(float*& outDensity, std::mutex& mutex, int& bExit)
+void SmokeSolver::Run(float*& outDensity, std::mutex& mutex, int& bExit, int nx, int ny, int nz, float& forcex, float& forcey, float& forcez, float& decay)
 {
 	std::cout << "hello world" << std::endl;
-	int res = 32;
-	Vec3i gs = Vec3i(res, 4 * res, res);
+	Vec3i gs = Vec3i(nx, ny, nz);
 	auto solver = FluidSolver(gs);
 	auto flags = FlagGrid(&solver);
 	auto vel = MACGrid(&solver);
 	auto density = Grid<Real>(&solver);
 	auto pressure = Grid<Real>(&solver);
+	auto force = Grid<Vec3>(&solver);
 
 	int bWidth = 1;
 	flags.initDomain(bWidth);
 	flags.fillGrid();
 
-	Vec3 gs_f = Vec3(res, res, res);
-	auto source = Cylinder(&solver, gs_f * Vec3(0.5, 0.1, 0.5), res * 0.14, gs_f * Vec3(0, 0.02, 0));
+	Vec3 gs_f = Vec3(nx, ny, nz);
+	Vec3 sourcePos = gs_f * Vec3(0.5, 0.1, 0.5);
+	auto source = Cylinder(&solver, sourcePos, nx * 0.08, gs_f * Vec3(0, 0.02, 0));
 
 	setOpenBound(flags, bWidth, "xyzXYZ", FlagGrid::TypeEmpty);
 
@@ -37,9 +38,10 @@ void SmokeSolver::Run(float*& outDensity, std::mutex& mutex, int& bExit)
 		advectSemiLagrange(&flags, &vel, &vel, 2);
 
 		setWallBcs(flags, vel);
-		addBuoyancy(flags, density, vel, Vec3(0, -4e-3, 0));
+		addBuoyancy(flags, density, vel, Vec3(0, -4e-3, 0) + Vec3(forcex, forcey, forcez));
+		decayDensity(flags, density, decay, sourcePos);
 
-		solvePressure(vel, pressure, flags);
+		solvePressure(vel, pressure, flags, 1e-3, 0, 0, 0, 1e-4, 1.5, true, 3);
 		solver.step();
 
 		mutex.lock();

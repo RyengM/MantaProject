@@ -29,6 +29,8 @@ void addGravity(FlagGrid& flags, MACGrid& vel, Vec3 gravity);
 
 void addBuoyancy(FlagGrid& flags, Grid<Real>& density, MACGrid& vel, Vec3 gravity, Real coefficient = 1.0);
 
+void decayDensity(FlagGrid& flags, Grid<Real>& density, Real decay, Vec3 source);
+
 void setOpenBound(FlagGrid& flags, int bWidth, std::string openBound = "", int type = FlagGrid::TypeOutflow | FlagGrid::TypeEmpty);
 
 void resetOutflow(FlagGrid& flags, Grid<Real>* phi = 0, BasicParticleSystem* parts = 0, Grid<Real>* real = 0, Grid<int>* index = 0, ParticleIndexSystem* indexSys = 0);

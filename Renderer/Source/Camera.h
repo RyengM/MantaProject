@@ -40,6 +40,7 @@ public:
 	inline void UpdateView()
 	{
 		viewMatrix = glm::lookAt(position, position + front, up);
+		viewProjMatrix = projMatrix * viewMatrix;
 	}
 
 	inline glm::mat4 GetViewMatrix()
@@ -50,6 +51,11 @@ public:
 	inline glm::mat4 GetProjMatrix()
 	{
 		return projMatrix;
+	}
+
+	inline glm::mat4 GetViewProjMatrix()
+	{
+		return viewProjMatrix;
 	}
 
 	// processes input received from any keyboard-like input system. Accepts input parameter in the form of camera defined ENUM (to abstract it from windowing systems)
@@ -65,6 +71,7 @@ private:
 public:
 	glm::mat4 viewMatrix = glm::mat4(1.f);
 	glm::mat4 projMatrix = glm::mat4(1.f);
+	glm::mat4 viewProjMatrix = glm::mat4(1.f);
 	// camera Attributes
 	glm::vec3 position = glm::vec3(0.f, 0.f, 0.f);
 	glm::vec3 front = glm::vec3(1.f, 0.f, 0.f);
