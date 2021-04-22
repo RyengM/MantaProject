@@ -17,10 +17,10 @@
 - open MantaflowProject.sln
 - build solution
 - set Renderer as startup project
+- copy ThirdParty/Assimp/assimp-vc142-t.dll to Bin/$(Configuration)
 
 ### Use TBB
-- download tbb from https://github.com/jckarter/tbb
+- download compile tbb from https://github.com/jckarter/tbb
 - put file into C:/Program Files/Intel/
 - rename folder as TBB
 - cd Build & cmake .. -G "Visual Studio 16 2019" -DTBB="ON"
-- manta -> VC++ Dictionaries -> Library Directories -> C:\Program Files\Intel\TBB\lib\intel64\vc14

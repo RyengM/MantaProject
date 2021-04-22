@@ -484,7 +484,8 @@ void Renderer::Update()
 {
 	UpdatePassCb();
 	UpdateObjectCb();
-	UpdateSmoke();
+	if (bUseSmoke)
+		UpdateSmoke();
 	UpdateDrawData();
 }
 
